@@ -4,7 +4,7 @@
 <head>
 
 <meta charset="utf-8">
-
+<title>project</title>
 
 
 <style type="text/css">
@@ -454,13 +454,72 @@ pre[class*="language-"] {
 
 <h2 id="toc_0">Title</h2>
 
-<p>I don&#39;t know yet.</p>
+<p>PQ Unlocked: Lock-Free Priority Queue for Use in A*</p>
 
 <h2 id="toc_1">Summary</h2>
 
-<p>We are going to implement a lock-free priority queue. In addition, we will use this lock-free priority queue to implement a parallel A* algorithm.</p>
+<p>We are going to implement a lock-free priority queue. In addition, we will use this lock-free priority queue to implement a parallel A* algorithm for use within popular games that require finding the shortest path, such as Pacman. </p>
 
 <h2 id="toc_2">Background</h2>
+
+<p>We are interested in lock-free data structures. Many parallel priority queues have been implemented, but they require locks which can slow down insertion and deletion operations. Finding the shortest path quickly is essential for many real time systems, such as autonomous vehicles that need to quickly calculate the correct path from point A to point B. We don&#39;t plan on building a driverless car, but we would like to apply the same logic to characters within games. The faster characters can make descisions, the more exciting and challenging the gameplay. We would like to see how different implementations of Priority Queues affect performance of the A* algorithm. To do this, we will build a sequential Priority Queue, a priority queue with coarse-grained locks, and a lock free priority queue.</p>
+
+<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea and diagram from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
+
+<p><img src="skiplist.png" alt="code"></p>
+
+<p>In addition, we will use our PQ during the A star algorithm. Here is the psuedo code from the 15-210 website:</p>
+
+<p><img src="Astar.png" alt="code"></p>
+
+<h2 id="toc_3">Challenge</h2>
+
+<p>This project will pose many challenges along the way. First, we will need to implement several different versions of the priority queue including a coarse-grained locking min heap, a fine-grained queue, and finally a lock-free implementation. By implementing each of these separately, we will better be able to test different workloads in the context of A star to determine if our implementation is correct and provides enough speedup. In A star, each thread will be accessing the priority queue each time it has finished looking at its next node in the frontier.
+Another challenge is to make sure that our underlying skip list used for our lock free priority queue does not take up too much memory. Because the skip list takes a lot of memory, there may be a high processor-to-processor communication to work ratio in order to retrieve new values in the skip list and remain synchronized. Similarly, each processor will need to constantly retrieve information from memory which may cancel out the benefits of the lock-free data structure.<br>
+Finally, for demoing and testing purposes, we will need build an interactive game or solver in Python that will call C++ wrappers that will use our lock free queue and parallel A star interface.
+Some overall constraints for our project that make mapping the workload challenging is if there are similar workloads in each step of A star, as there will then be high contention for the priority queue. This would result in many threads restarting their dequeue operation over and over. </p>
+
+<h2 id="toc_4">Resources</h2>
+
+<p>Our implementation of the lock-free priority queue will be written from scratch, though we will use tools such as OpenMP to parallelize A*. Additionally, we will use the Python/C library to make calls to our implementation from Python. The final implementation will run on the Intel machines or the Latedays machines.
+We will be using the following technical report as reference material: <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">Fast and Lock-Free Concurrent Priority Queues for Multi-Thread Systems by Hakan Sundell and Philippas Tsigas</a></p>
+
+<h2 id="toc_5">Goals and Deliverables</h2>
+
+<h4 id="toc_6">Plan To Achieve</h4>
+
+<p>Our project relies heavily on having a priority queue in which one can simulataneously delete and insert nodes. 
+First, we plan to implement a completely sequential priority queue. Then, we plan to create a priority queue with different granularities of locking for comparison. Finally, we will implement our lock-free priority queue in hopes that it will be able to insert and delete a series of nodes from a graph much faster than the locking and sequential versions of the queue. Our hope is that we can achieve much higher speed-up that locking priority queues even with large 
+supporting data structures like SkipLists. We also hope to better understand why lock-free data structures can be so much faster.</p>
+
+<p>Then, we plan to use our priority queues in a parallel implementation of the A* algorithm. </p>
+
+<p>On top of all this, we will have a test harness to check the correctness and performance of our code from the beginning. We plan on timing average insertion and deletion operation in addition to the overall time it takes to insert and delete a series of elements.</p>
+
+<p>With this plan, we will show speedup graphs to compare the differences in priority queue implementations. </p>
+
+<h4 id="toc_7">Hope To Achieve</h4>
+
+<p>On top of the other plans, we would like to use our A* and lock-free priority queue written in C for a Python version of some game, like Pacman. </p>
+
+<p>As a fun demo, we would like to have the ghosts chase Pacman using the A* algorithm to find him. We would like to run our Pacman three separate times where the ghosts rely on sequential, locking, and lock-free priority queue. We would like to see if the user scores lower on average when the ghosts are able to find the shortest paths faster due to better A* implementations.</p>
+
+<p>We hope to learn whether locking or lock free implementations of a priority queues are better for small and large graphs and if these implementations affect gameplay that relies on A*.</p>
+
+<p>Another moon-shot idea is to extend our application to apply to the D* algorithm, where the graph can change in the middle of running and changes are propagated across certain paths. More about D* can be found <a href="https://en.wikipedia.org/wiki/D*">here</a></p>
+
+<h2 id="toc_8">Platform</h2>
+
+<p>C++ is a good platform that will suit this project’s needs because it enables us to work at a lower level and use atomic built-ins and libraries like OpenMP and is still fast. On the other hand, we are using Python not to show speedup but for interactive demoing purposes. For that reason, Python is a good choice as it offers libraries like PyGame for sleek final products and also has Python/C APIs which let us make lower level function calls. </p>
+
+<h2 id="toc_9">Schedule</h2>
+
+<ul>
+<li><b>Week of 4/10:</b> Implement test harness with general A* algorithm on directed graph, implement sequential priority queue</li>
+<li><b>Week of 4/17:</b> Implement coarse-grained locked priority queue and begin implementing lock-free priority queue. Compare results against other two implementations of priority queue</li>
+<li><b>Week of 4/24:</b> Finish implementing lock-free priority queue, begin implementation of a Python game that will need to use priority queue, as well as make wrapper functions to call our C++ implementation from Python</li>
+<li><b> Week of 5/1:</b> Continued implementation of Python game, implement D* algorithm as further test harness</li>
+</ul>
 
 
 
