@@ -464,13 +464,10 @@ pre[class*="language-"] {
 
 <p>We are interested in lock-free data structures. Many parallel priority queues have been implemented, but they require locks which can slow down insertion and deletion operations. Finding the shortest path quickly is essential for many real time systems, such as autonomous vehicles that need to quickly calculate the correct path from point A to point B. We don&#39;t plan on building a driverless car, but we would like to apply the same logic to characters within games. The faster characters can make descisions, the more exciting and challenging the gameplay. We would like to see how different implementations of Priority Queues affect performance of the A* algorithm. To do this, we will build a sequential Priority Queue, a priority queue with coarse-grained locks, and a lock free priority queue.</p>
 
-<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea and diagram from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
-
-<p><img src="skiplist.png" alt="code"></p>
+<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
 
 <p>In addition, we will use our PQ during the A star algorithm. Here is the psuedo code from the 15-210 website:</p>
 
-<p><img src="Astar.png" alt="code"></p>
 
 <h2 id="toc_3">Challenge</h2>
 
