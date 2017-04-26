@@ -464,10 +464,13 @@ pre[class*="language-"] {
 
 <p>We are interested in lock-free data structures. Many parallel priority queues have been implemented, but they require locks which can slow down insertion and deletion operations. Finding the shortest path quickly is essential for many real time systems, such as autonomous vehicles that need to quickly calculate the correct path from point A to point B. We don&#39;t plan on building a driverless car, but we would like to apply the same logic to characters within games. The faster characters can make descisions, the more exciting and challenging the gameplay. We would like to see how different implementations of Priority Queues affect performance of the A* algorithm. To do this, we will build a sequential Priority Queue, a priority queue with coarse-grained locks, and a lock free priority queue.</p>
 
-<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
+<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea and diagram from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
+
+<p><img src="skiplist.png" alt="code"></p>
 
 <p>In addition, we will use our PQ during the A star algorithm. Here is the psuedo code from the 15-210 website:</p>
 
+<p><img src="Astar.png" alt="code"></p>
 
 <h2 id="toc_3">Challenge</h2>
 
@@ -509,14 +512,30 @@ supporting data structures like SkipLists. We also hope to better understand why
 
 <p>C++ is a good platform that will suit this project’s needs because it enables us to work at a lower level and use atomic built-ins and libraries like OpenMP and is still fast. On the other hand, we are using Python not to show speedup but for interactive demoing purposes. For that reason, Python is a good choice as it offers libraries like PyGame for sleek final products and also has Python/C APIs which let us make lower level function calls. </p>
 
-<h2 id="toc_9">Schedule</h2>
+<h2 id="toc_9">Progress Checkpoint</h2>
+
+<p><b>New schedule: </b></p>
 
 <ul>
-<li><b>Week of 4/10:</b> Implement test harness with general A* algorithm on directed graph, implement sequential priority queue</li>
-<li><b>Week of 4/17:</b> Implement coarse-grained locked priority queue and begin implementing lock-free priority queue. Compare results against other two implementations of priority queue</li>
-<li><b>Week of 4/24:</b> Finish implementing lock-free priority queue, begin implementation of a Python game that will need to use priority queue, as well as make wrapper functions to call our C++ implementation from Python</li>
-<li><b> Week of 5/1:</b> Continued implementation of Python game, implement D* algorithm as further test harness</li>
+<li><b>Week of 4/10:</b> Implement test harness with general A* algorithm on directed graph (scrapped idea), implement sequential priority queue (done)</li>
+<li><p><b>Week of 4/17:</b> Implement coarse-grained and fine-grained locked priority queue (done) and begin implementing lock-free priority queue (moved to following week). Compare results against other two implementations of priority queue (moved to following week).</p></li>
+<li><p><b>4/26 - 4/28:</b> Tara should finish implementing test harness. Omkar will begin building the lock-free priority queue. Tara will think of a new way to demo our PQ.</p></li>
+<li><p><b>4/29 - 5/1:</b> Study for exam and both Tara and Omkar will continue working on lock-free PQ.</p></li>
+<li><p><b>5/2 - 5/5:</b> Tara and Omkar will finish lock-free PQ and consider a semi-lock free PQ (explained below).</p></li>
+<li><p><b> 5/6 - 5/8:</b> Omkar will make demo and Tara will create presentation comparing our 4 different queues. </p></li>
 </ul>
+
+<p><b>Summary of progress: </b>
+So far, we have a single threaded priority queue, coarse-grained priority queue, and fine-grained priority queue fully implemented. We have begun work on the testing harness to compare all of our implementations. A week ago, we went to office hours to discuss the best way to show the results of our project. A TA liked the idea of us having a bunch of different priority queues, ranging from locking to lock-free for comparison. Thus, we added the fine-grained locked priority queue. However, the TA pointed out that A* was inherently sequential, and thus not the best way to show the effectiveness of our lock-free priority queue. Thus, we decided to create a series of traces in a test harness to compare our queues. The performance of our PQ matters most when we need to insert a bunch of nodes into it at the same time, so we will form traces that echo this behavior. OS&#39;s need to do this as they receive a bunch of tasks.</p>
+
+<p><b> Goals + Demo Plan: </b>
+We are still on track to complete our lock-free priority queue, which was the main goal of our project.  We hope to get significant speed-up with our lock-free priority queue and be able to see that by early next week. The goals under the &quot;plan to achieve&quot; section have not changed.  </p>
+
+<p>In terms of our &quot;hope to achieve&quot; section, after talking to the TA, we don&#39;t think A* is the best way to showcase our Priority Queue. Therefore, we won&#39;t be making a Python animated game to demo this anymore. </p>
+
+<p>An important goal is to spend the end of this week thinking of a better demo to replace the Python game. One idea is the simulation of an OS receiving tasks. However, we would like to do something a bit more visually fun. In the worst case, we will just do the OS simulation, in which case we can show some speed-up graphs. We still may be able to consider using D* because every time one traverses the graph, she learns new information about the graph, and the PQ may need to change. This means may insertions and deletions will happen at the same time. </p>
+
+<p><b> Concerns: </b> We are still concerned about using the skiplist data structure in our lock-free priority queue. We imagine that for many inserts, it&#39;ll get very big very fast. We think, if this is the case, it may be interesting to try out a semi-lock free priority queue. In cases where the skip list gets too big, it could lock. We are unsure about this, but think it could be cool to explore this idea. Another concern, as we mentioned earlier, is how we show offthe differences between the PQ&#39;s in a way that is informative and fun</p>
 
 
 
