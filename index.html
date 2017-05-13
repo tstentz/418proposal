@@ -4,7 +4,7 @@
 <head>
 
 <meta charset="utf-8">
-<title>project</title>
+<title>finalwriteup</title>
 
 
 <style type="text/css">
@@ -452,90 +452,142 @@ pre[class*="language-"] {
 
 <body>
 
-<h2 id="toc_0">Title</h2>
-
-<p>PQ Unlocked: Lock-Free Priority Queue for Use in A*</p>
+<h1 id="toc_0">PQ Unlocked: Lock-Free Priority Queue</h1>
 
 <h2 id="toc_1">Summary</h2>
 
-<p>We are going to implement a lock-free priority queue. In addition, we will use this lock-free priority queue to implement a parallel A* algorithm for use within popular games that require finding the shortest path, such as Pacman. </p>
+<p>We implemented a lock-free priority queue that is better than a fine-grained and coarse-grained priority queue for various high-contention traces using more than 3 threads. This includes traces with heavy insertion, deletion, and a mix of the operations. These traces were run on the GHC 8-core hyper-threaded machines. </p>
 
 <h2 id="toc_2">Background</h2>
 
-<p>We are interested in lock-free data structures. Many parallel priority queues have been implemented, but they require locks which can slow down insertion and deletion operations. Finding the shortest path quickly is essential for many real time systems, such as autonomous vehicles that need to quickly calculate the correct path from point A to point B. We don&#39;t plan on building a driverless car, but we would like to apply the same logic to characters within games. The faster characters can make descisions, the more exciting and challenging the gameplay. We would like to see how different implementations of Priority Queues affect performance of the A* algorithm. To do this, we will build a sequential Priority Queue, a priority queue with coarse-grained locks, and a lock free priority queue.</p>
+<p>An effective concurrent priority queue should be able to quickly handle multiple simultaneous insert and deleteMin operations over a sustained period of time. This is cirtical for parallelized algorithms such as A* or Djikstra&#39;s as well as for the scheduler at the operating system level.</p>
 
-<p>We plan on implementing the priority queue as a min heap. We also plan on using a skip list so that our PQ can be lock-free. We got this idea and diagram from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a></p>
+<p>Traditional lock-based concurrent priority queues are implemented as heaps and rely primarily on lock-based mechanisms for synchronization. In particular, these locks can slow down insertion and deletion operations as they sift nodes up and down through the heap to maintain the heap invariant. The improved solution is to remove the overhead of obtaining and releasing mutexes and to use a data structure less prone to contention that heaps face.</p>
+
+<p>In order to implement the lock-free PQ, a skiplist was used rather than the traditional heap data structure. We got this idea from the <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">paper cited in the Resources Section.</a> For benchmark purposes, our fine-grained and coarse-grained PQ&#39;s were implemented as traditional heaps. </p>
+
+<p>A skiplist lowers contention from multiple inserts and deletes for two main reasons. As a probabilistic data structure, simultaneous inserts have a high likelihood of happening at different levels of the skiplist and are less likely to manipulate the same pointers. Additionally, the delete operation always happens at the left-most tower of nodes.</p>
+
+<p>The test harness that we developed simulated traces that consisted of a series of insertion and deletion requests with unique priorities. The output of this process was simply the resultant data structure which still contained any keys that had not been deleted yet.</p>
+
+<p>The challenge with the work loads can arise when there are multiple insert/delete operations at the same time that can overwrite each other and corrupt the data structure. This lock-free program is dependent upon threads&#39; careful maintenance of reference counts and delete markers to avoid corruption. While this adds overhead, the speedup was still found to be significant when scaling out to more threads.</p>
+
+<h2 id="toc_3">Assumptions and Constraints</h2>
+
+<ul>
+<li>All unique priorities</li>
+<li>No DCAS</li>
+<li>Working on GHC machines
+
+<ul>
+<li>8 cores</li>
+<li>Hyperthreaded</li>
+<li>16 logical threads</li>
+</ul></li>
+<li>Workload has no notion of time</li>
+<li>Referencing Counting for Memory Management</li>
+</ul>
+
+<h2 id="toc_4">Implementation</h2>
+
+<p>We used the GHC machines to test our code for up to 16 logical threads and relied on standard C++ libraries. In particular, we made use of Boost in order to put threads to sleep as part of our general backoff strategy.</p>
+
+<h4 id="toc_5">Data Structure Choice</h4>
+
+<p>After doing some research, we felt that a heap was not naturally suited to a lock-free implementation. This is because the contention for certain pointers is so high on both insert and deleteMin. For example, inserting always causes contention for the pointer to the next empty space in the heap. Sifting up and down also causes a ton of contention. </p>
+
+<p>Instead, we chose to use a skiplist because its natural structure minimizes contention for insert, which happens to have the same expected time complexity as a heap&#39;s insert. It also provides an O(1) runtime for deletion, which beats the deleteMin runtime for heaps. For those unfamiliar with a skiplist, it can best be described as a linked list with multiple layers. See the figure below.</p>
 
 <p><img src="skiplist.png" alt="code"></p>
 
-<p>In addition, we will use our PQ during the A star algorithm. Here is the psuedo code from the 15-210 website:</p>
+<h4 id="toc_6">Skiplist Insertion of Nodes</h4>
 
-<p><img src="Astar.png" alt="code"></p>
+<p>Upon inserting a new node, we randomly choose a height for that node. We insert it into the linked list at that height and every level below it. Due to this probablistic approach, on each level there are half as many nodes as the level lower than it. So, on the bottom level there are 100% of the nodes, and at the next level up there are roughly 50% of them. </p>
 
-<h2 id="toc_3">Challenge</h2>
+<p>Once we find the height, we begin looking for the place in which to place the node such that the PQ remains sorted. Since we start at some random height, chances are we won&#39;t need to look through all the nodes to find the place to insert the node. This is where the &quot;skip&quot; comes from in skiplist. The different levels allow one to skip forward during searching and inserting.  </p>
 
-<p>This project will pose many challenges along the way. First, we will need to implement several different versions of the priority queue including a coarse-grained locking min heap, a fine-grained queue, and finally a lock-free implementation. By implementing each of these separately, we will better be able to test different workloads in the context of A star to determine if our implementation is correct and provides enough speedup. In A star, each thread will be accessing the priority queue each time it has finished looking at its next node in the frontier.
-Another challenge is to make sure that our underlying skip list used for our lock free priority queue does not take up too much memory. Because the skip list takes a lot of memory, there may be a high processor-to-processor communication to work ratio in order to retrieve new values in the skip list and remain synchronized. Similarly, each processor will need to constantly retrieve information from memory which may cancel out the benefits of the lock-free data structure.<br>
-Finally, for demoing and testing purposes, we will need build an interactive game or solver in Python that will call C++ wrappers that will use our lock free queue and parallel A star interface.
-Some overall constraints for our project that make mapping the workload challenging is if there are similar workloads in each step of A star, as there will then be high contention for the priority queue. This would result in many threads restarting their dequeue operation over and over. </p>
+<p>This notion is most useful to us in the context of contention. In a skiplist, if we insert two nodes at the same time, they are more unlikely to access the same parts of the list at the same time. For example, if they are assigned different heights, it is much more unlikely the paths of inserting the two nodes will collide, whereas they collide every time in the heap. </p>
 
-<h2 id="toc_4">Resources</h2>
+<h4 id="toc_7">Skiplist Deletion of Nodes</h4>
 
-<p>Our implementation of the lock-free priority queue will be written from scratch, though we will use tools such as OpenMP to parallelize A*. Additionally, we will use the Python/C library to make calls to our implementation from Python. The final implementation will run on the Intel machines or the Latedays machines.
-We will be using the following technical report as reference material: <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">Fast and Lock-Free Concurrent Priority Queues for Multi-Thread Systems by Hakan Sundell and Philippas Tsigas</a></p>
+<p>For delete, things get a bit more complicated. Managing all of the pointers and cases in which deleteMin and insert interrput the deleting thread was one of the hardest parts of this project. In general, when we are about to delete a node, we mark its value and its next pointer at each of its levels. This is to signal to all other threads that this node is &quot;logically&quot; deleted even though it is still physically in the list. We mark pointers by setting their least significant bit to one. We use this trick, learned from the paper referenced below, so that we do not need double compare and swap. </p>
 
-<h2 id="toc_5">Goals and Deliverables</h2>
+<p>Supposing no other threads preempt the deleting thread, the node becomes physically deleted when the next pointer of it&#39;s previous value points to its next node, just like in a regular linked list. </p>
 
-<h4 id="toc_6">Plan To Achieve</h4>
+<p>Though, under situations of high contention and the use of many threads, the above situation is very unlikely. </p>
 
-<p>Our project relies heavily on having a priority queue in which one can simulataneously delete and insert nodes. 
-First, we plan to implement a completely sequential priority queue. Then, we plan to create a priority queue with different granularities of locking for comparison. Finally, we will implement our lock-free priority queue in hopes that it will be able to insert and delete a series of nodes from a graph much faster than the locking and sequential versions of the queue. Our hope is that we can achieve much higher speed-up that locking priority queues even with large 
-supporting data structures like SkipLists. We also hope to better understand why lock-free data structures can be so much faster.</p>
+<h4 id="toc_8">Help Delete</h4>
 
-<p>Then, we plan to use our priority queues in a parallel implementation of the A* algorithm. </p>
+<p>We were inspired by the paper (reference again) to have threads that are inserting and deleting to aid other deleting threads. For example, let&#39;s say that you have the following situation. The stars mean we&#39;ve marked the node&#39;s value and pointers to the next tower as ready to be deleted.</p>
 
-<p>On top of all this, we will have a test harness to check the correctness and performance of our code from the beginning. We plan on timing average insertion and deletion operation in addition to the overall time it takes to insert and delete a series of elements.</p>
+<p><img src="skiplist_del.png" alt="slide"></p>
 
-<p>With this plan, we will show speedup graphs to compare the differences in priority queue implementations. </p>
+<p>In a locking situation, the thread inserting the 3 would have to wait for the thread deleting 11 to be done. But, since this is lock-free, we want to avoid blocking everywhere we can. The inserting thread can detect if the node is being deleted by seeing if its values or pointers are marked. So, instead of having the thread inserting 3 wait, we instead have it help finish off deleting 3 from the current level down since the deleting thread deletes from the bottom of the tower to the top. The deleting thread is careful to check for this before it moves pointers around. We also have other deleting threads do this. If we call two deleteMin&#39;s in a row, they will both likely contribute to the deletion of the smallest element. </p>
 
-<h4 id="toc_7">Hope To Achieve</h4>
+<p>We used the pseudo code in <a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">this paper</a> as a guide for our skiplist implementation. In addition, we modified the way we back off if we don&#39;t succeed in comparing and swapping. </p>
 
-<p>On top of the other plans, we would like to use our A* and lock-free priority queue written in C for a Python version of some game, like Pacman. </p>
+<h2 id="toc_9">Results</h2>
 
-<p>As a fun demo, we would like to have the ghosts chase Pacman using the A* algorithm to find him. We would like to run our Pacman three separate times where the ghosts rely on sequential, locking, and lock-free priority queue. We would like to see if the user scores lower on average when the ghosts are able to find the shortest paths faster due to better A* implementations.</p>
+<p>The results of our project met our expectations for outperforming traditional lock-based concurrent priority queues as well as lead to some interesting other avenues for further optimization.</p>
 
-<p>We hope to learn whether locking or lock free implementations of a priority queues are better for small and large graphs and if these implementations affect gameplay that relies on A*.</p>
+<p>To break down our analysis, we considered three different types of traces: insert only workloads, delete heavy operations, and equal probability of insert and delete operations. All traces began with an insertion of 100-1000 nodes before the series of insertions and deletes that were to be tested. </p>
 
-<p>Another moon-shot idea is to extend our application to apply to the D* algorithm, where the graph can change in the middle of running and changes are propagated across certain paths. More about D* can be found <a href="https://en.wikipedia.org/wiki/D*">here</a></p>
+<p>We created a test harness that runs a suite of tests given a trace, number of threads, and number of iterations. It allows us to test multiple priority queue implementations in one call. For each priority queue implementation, we spin off the number of pthreads that correspond to the input number of threads and run the trace repeatedly for the number of iterations specified. In general we ran traces ten times per priority queue and took the average of their elapsed times in milliseconds. </p>
 
-<h2 id="toc_8">Platform</h2>
+<p>To generate traces, we wrote a python script that uses the random module to pick whether to insert or delete depending on the structure of the trace.  </p>
 
-<p>C++ is a good platform that will suit this project’s needs because it enables us to work at a lower level and use atomic built-ins and libraries like OpenMP and is still fast. On the other hand, we are using Python not to show speedup but for interactive demoing purposes. For that reason, Python is a good choice as it offers libraries like PyGame for sleek final products and also has Python/C APIs which let us make lower level function calls. </p>
+<p>Speedup was measured using CycleTimer to calculate the runtime of multiple iterations of the program at different thread counts. The curves provided below show this output for up to 16 threads.</p>
 
-<h2 id="toc_9">Progress Checkpoint</h2>
+<p><img src="all_insert.png" alt="insert only"></p>
 
-<p><b>New schedule: </b></p>
+<p>This above figure shows 100,000 insert operations. As can be seen in the graph above, low thread counts reveal the relatively expensive overhead of a lock-free skiplist when no concurrency is needed. Repeated calls to atomic operations such as compare and swap slow down a program that would be performed better sequentially, as the coarse-grained heap performed better between 1 and 3 threads.</p>
 
-<ul>
-<li><b>Week of 4/10:</b> Implement test harness with general A* algorithm on directed graph (scrapped idea), implement sequential priority queue (done)</li>
-<li><p><b>Week of 4/17:</b> Implement coarse-grained and fine-grained locked priority queue (done) and begin implementing lock-free priority queue (moved to following week). Compare results against other two implementations of priority queue (moved to following week).</p></li>
-<li><p><b>4/26 - 4/28:</b> Tara should finish implementing test harness. Omkar will begin building the lock-free priority queue. Tara will think of a new way to demo our PQ.</p></li>
-<li><p><b>4/29 - 5/1:</b> Study for exam and both Tara and Omkar will continue working on lock-free PQ.</p></li>
-<li><p><b>5/2 - 5/5:</b> Tara and Omkar will finish lock-free PQ and consider a semi-lock free PQ (explained below).</p></li>
-<li><p><b> 5/6 - 5/8:</b> Omkar will make demo and Tara will create presentation comparing our 4 different queues. </p></li>
-</ul>
+<p>However, the performance curves were inverted at 16 running threads. The coarse-grained implementation steadily increased with a higher thread count. This was because the threads were constantly having to wait for the lock, degrading to what was similar to sequential operation. On other hand, the fine-grained implementation had significantly lower run time than coarse-grained as its hand-over-hand nature allows for more insert and delete operations simultaneously.</p>
 
-<p><b>Summary of progress: </b>
-So far, we have a single threaded priority queue, coarse-grained priority queue, and fine-grained priority queue fully implemented. We have begun work on the testing harness to compare all of our implementations. A week ago, we went to office hours to discuss the best way to show the results of our project. A TA liked the idea of us having a bunch of different priority queues, ranging from locking to lock-free for comparison. Thus, we added the fine-grained locked priority queue. However, the TA pointed out that A* was inherently sequential, and thus not the best way to show the effectiveness of our lock-free priority queue. Thus, we decided to create a series of traces in a test harness to compare our queues. The performance of our PQ matters most when we need to insert a bunch of nodes into it at the same time, so we will form traces that echo this behavior. OS&#39;s need to do this as they receive a bunch of tasks.</p>
+<p>Finally, the biggest takeaway is that the lock-free skiplist implementation decreased in runtime until a scale up to 8 threads and then plateaued at a level much lower than that of either of the lock-based implementations. This is because in the lock-free implementation, all threads are constantly making progress in their insertions or deletions and are hindered only by short backoff periods. No spinning on locks or useless work is occurring. It was also interesting to note that this implementation used only a constant backoff strategies, as exponential backoff seemed to not change the runtime of the lockfree implementation much or even increase it.</p>
 
-<p><b> Goals + Demo Plan: </b>
-We are still on track to complete our lock-free priority queue, which was the main goal of our project.  We hope to get significant speed-up with our lock-free priority queue and be able to see that by early next week. The goals under the &quot;plan to achieve&quot; section have not changed.  </p>
+<p><img src="big_insert_delete.png" alt="delete graph"></p>
 
-<p>In terms of our &quot;hope to achieve&quot; section, after talking to the TA, we don&#39;t think A* is the best way to showcase our Priority Queue. Therefore, we won&#39;t be making a Python animated game to demo this anymore. </p>
+<p>In the above trace, we inserted 1000 nodes and then gave a 50% probability to insertion and deletion for 5000 operations. As you can see above, we found that lock-free still tended to perform better than the coarse-grained and fine-grained implementations. More specifically, fine-grained saw a spike at 14 threads, which we speculate is a result of the fact that the higher number of threads inserting and deleting in a relatively small priority queue increases contention to the point where runtime is drastically affected. At the same point, at 14 threads, the lock-free implementation continues to remain flat at an average runtime of 5 milliseconds.</p>
 
-<p>An important goal is to spend the end of this week thinking of a better demo to replace the Python game. One idea is the simulation of an OS receiving tasks. However, we would like to do something a bit more visually fun. In the worst case, we will just do the OS simulation, in which case we can show some speed-up graphs. We still may be able to consider using D* because every time one traverses the graph, she learns new information about the graph, and the PQ may need to change. This means may insertions and deletions will happen at the same time. </p>
+<p>One interesting thing to note is that coarse-grained appears to have been effective on this workload. We speculate that this is because each insertion and deletion operation is happening quickly enough that the global mutex is released with little hold time. This differs from fine-grained since that version is slowed down by any other insert or delete operations on the same heap, and there is a lot of overhead in locking and unlocking so many mutexes as opposed to just one.</p>
 
-<p><b> Concerns: </b> We are still concerned about using the skiplist data structure in our lock-free priority queue. We imagine that for many inserts, it&#39;ll get very big very fast. We think, if this is the case, it may be interesting to try out a semi-lock free priority queue. In cases where the skip list gets too big, it could lock. We are unsure about this, but think it could be cool to explore this idea. Another concern, as we mentioned earlier, is how we show offthe differences between the PQ&#39;s in a way that is informative and fun</p>
+<p>We also ran our test suite on a medium trace (close to 1000 operations) and a small trace (close to 100 operations). </p>
+
+<p><img src="medium.png" alt="medium"></p>
+
+<p><img src="small.png" alt="small"></p>
+
+<p>The medium trace performs quite similarly to the large trace. However, in the small trace, the coarse-grained PQ actually beats the lock-free implementation past 10 threads. This could be due to the fact that when there are so few operations it is better to do them sequentially. The added time of comparing and swapping when there are many threads interacting actually goes against the lock-free implementation when the traces are really small. This slow down also could be due to threads helping the deletion process getting in the way.  </p>
+
+<p>We can really see the negative performance of help delete in our final trace. This trace inserts 30 times, then deletes 30 times. It repeats this process ten times. </p>
+
+<p><img src="bursty.png" alt="bursty"></p>
+
+<p>We see that, for the first time, our lock-free implementation performs horribly. We believe that this is because all of the threads are in the middle of deleting when the next round of inserts starts, so they all begin helping delete instead of inserting anything. Not only does this happen on insert, but subsequent deleteMin operations also help each other delete. So, instead of deleting the node they were meant for, they help delete another thread&#39;s. In both cases, helping deletion delays the task the thread was set out to do constantly for this trace, and this causes massive slow down.</p>
+
+<p>If we had more time, we would have like to remove the help delete from the skiplist to see how it did on the bursty trace. We also would have liked to explore more back off strategies because constant and sequential to see if we could get any further speedup. We also would have liked to run this on the latedays machines, so we should have asked for Boost on them sooner!</p>
+
+<p>In conclusion, we were able to see our lock-free priority queue beat the other two implementations in most cases for a thread count greater than three. </p>
+
+<h2 id="toc_10">Resources</h2>
+
+<p>The following white paper was used as reference material for the lock-free implementation. 
+<a href="http://www.non-blocking.com/download/SunT03_PQueue_TR.pdf">Fast and Lock-Free Concurrent Priority Queues for Multi-Thread Systems by Hakan Sundell and Philippas Tsigas</a></p>
+
+<p>Additionally, to investigate different backoff strategies, the following paper was used.
+[Lock-Free Linked Lists and Skip Lists by Mikhail Fomitchev and Eric Ruppert]</p>
+
+<p>Finally, for the fine-grained priority queue, we used this book:
+[The Art of Multiprocessor Programming by Maurice Herlihy and Nir Shavit]</p>
+
+<h2 id="toc_11">Link to Source Code</h2>
+
+<p>https://bitbucket.org/okelkar/finalproject/src</p>
+
+<h2 id="toc_12">Balanced Workload</h2>
+
+<p>Equal work was performed by both project members.</p>
 
 
 
